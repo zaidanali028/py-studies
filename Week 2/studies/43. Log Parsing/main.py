@@ -1,8 +1,6 @@
 import re
 import pandas as pd
-from smtplib import SMTP
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+
 
 # todo: send the csv file to myself on telegram every weekday at 7am 
 
