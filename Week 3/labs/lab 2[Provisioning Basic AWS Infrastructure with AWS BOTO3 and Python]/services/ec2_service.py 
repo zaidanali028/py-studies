@@ -1,0 +1,137 @@
+
+# services/ec2_service.py
+
+import boto3
+
+from typing import List, Dict
+
+def create_security_group(vpc_id: str, group_name: str, description: str, rules: Dict[str, List[Dict]]) -> str:
+    """
+    Creates a security group and configures ingress and egress rules.
+
+    Args:
+        vpc_id (str): The ID of the VPC where the security group will be created.
+        group_name (str): The name for the security group.
+        description (str): A description for the security group.
+        rules (Dict[str, List[Dict]]): A dictionary containing ingress and egress rules.
+            - "ingress": List of ingress rule dictionaries.
+                Each ingress rule should have:
+                    - "protocol" (str): Protocol for the rule (e.g., 'tcp').
+                    - "port" (int): Port number to allow access.
+                    - "cidr" (str): CIDR range to allow (e.g., '0.0.0.0/0' for all IPs).
+            - "egress": List of egress rule dictionaries.
+                Each egress rule should have:
+                    - "protocol" (str): Protocol for the rule (e.g., 'tcp').
+                    - "port" (int): Port number to allow access.
+                    - "cidr" (str): CIDR range to allow (e.g., '0.0.0.0/0' for all IPs).
+
+      
+
+    Returns:
+        str: The ID of the created security group.
+
+    Example:
+        create_security_group(
+            vpc_id="ali-boto-vpc",
+            group_name="FrontendSecurityGroup",
+            description="Frontend Security Group Description",
+            rules={
+               "ingress": [
+                    {"protocol": "tcp", "port": 22, "cidr": f"{MY_IP}/32"}, # Allow SSH access from your IP
+                    {"protocol": "tcp", "port": 80, "cidr": "0.0.0.0/0"}  # Allow HTTP access from anywhere
+                ]
+            }
+        )
+    """
+    ec2_client = boto3.client('ec2')
+
+    # Creates the security group within the specified VPC
+    sg = ec2_client.create_security_group(VpcId=vpc_id, GroupName=group_name, Description=description)
+    sg_id = sg['GroupId']
+
+    # Add ingress rules if specified
+    for rule in rules.get("ingress", []):
+        ec2_client.authorize_security_group_ingress(
+            GroupId=sg_id,
+            IpProtocol=rule['protocol'],
+            CidrIp=rule['cidr'],
+            FromPort=rule['port'],
+            ToPort=rule['port']
+        )
+
+    # Add egress rules if specified
+    for rule in rules.get("egress", []):
+        ec2_client.authorize_security_group_egress(
+            GroupId=sg_id,
+            IpProtocol=rule['protocol'],
+            CidrIp=rule['cidr'],
+            FromPort=rule['port'],
+            ToPort=rule['port']
+        )
+
+    return sg_id
+
+
+def create_ec2_instance(subnet_id: str, security_group_id: str, instance_type: str, key_name: str, image_id: str) -> str:
+    """
+    Launches an EC2 instance within a specified subnet and associates it with a security group.
+
+    Args:
+        subnet_id (str): The ID of the subnet where the instance will be launched.
+        security_group_id (str): The ID of the security group to attach to the instance.
+        instance_type (str): The type of the EC2 instance (e.g., 't2.micro').
+        key_name (str): The name of the SSH key pair to attach to the instance.
+        image_id (str): The AMI ID to use for the instance.
+
+    Returns:
+        str: The ID of the created EC2 instance.
+
+    Example:
+        create_ec2_instance(
+            subnet_id="subnet-12345",
+            security_group_id="public-sg",
+            instance_type="t2.micro",
+            key_name="key-pair",
+            image_id="ami-12345678"
+        )
+    """
+    ec2_client = boto3.client('ec2')
+
+    # Launch the EC2 instance
+    instance = ec2_client.run_instances(
+        ImageId=image_id,
+        InstanceType=instance_type,
+        KeyName=key_name,
+        MaxCount=1,
+        MinCount=1,
+        SubnetId=subnet_id,
+        SecurityGroupIds=[security_group_id]
+    )
+
+    # Return the ID of the first instance in the response
+    return instance['Instances'][0]['InstanceId']
+
+
+def associate_elastic_ip(instance_id: str) -> str:
+    """
+    Allocates an Elastic IP and associates it with the specified EC2 instance.
+
+    Args:
+        instance_id (str): The ID of the EC2 instance to associate with the Elastic IP.
+
+    Returns:
+        str: The public IP address of the allocated Elastic IP.
+
+    Example:
+        associate_elastic_ip(instance_id="i-1234567890abcdef")
+    """
+    ec2_client = boto3.client('ec2')
+
+    # Allocate an Elastic IP in the VPC
+    allocation = ec2_client.allocate_address(Domain='vpc')
+
+    # Associate the allocated Elastic IP with the specified instance
+    ec2_client.associate_address(InstanceId=instance_id, AllocationId=allocation['AllocationId'])
+
+    # Return the public IP address of the Elastic IP
+    return allocation['PublicIp']

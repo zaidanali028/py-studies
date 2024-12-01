@@ -1,0 +1,36 @@
+# services/s3_service.py
+
+import boto3
+
+
+def create_s3_bucket(bucket_name: str) -> str:
+    """
+    Creates an S3 bucket with the specified name and enables versioning on it.
+
+    Args:
+        bucket_name (str): The name of the S3 bucket to create.
+
+    Steps:
+    1. Will Create an S3 bucket in the specified region.
+       - The bucket is created in the region defined by the current AWS session.
+    2. Will Enable versioning on the S3 bucket to allow storing multiple versions of objects.
+       - This is useful for data protection and recovery scenarios.
+    
+    Returns:
+        str: The name of the created S3 bucket.
+    """
+    s3_client = boto3.client('s3')
+
+    # Create the S3 bucket in the current region.
+    s3_client.create_bucket(
+        Bucket=bucket_name,
+        CreateBucketConfiguration={'LocationConstraint': boto3.session.Session().region_name}
+    )
+
+    # Enable versioning for the S3 bucket.
+    s3_client.put_bucket_versioning(
+        Bucket=bucket_name, 
+        VersioningConfiguration={'Status': 'Enabled'}
+    )
+
+    return bucket_name

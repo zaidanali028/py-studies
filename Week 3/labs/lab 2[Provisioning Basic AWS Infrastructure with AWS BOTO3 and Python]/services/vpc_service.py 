@@ -1,0 +1,59 @@
+# services/vpc_service.py
+
+import boto3
+
+
+def create_vpc() -> str:
+    """
+    Creates a new VPC with the specified CIDR block.
+
+    - CIDR block: 10.0.0.0/16
+      - This provides 65,536 IP addresses (2^16), out of which AWS reserves some for internal use.
+
+    Steps:
+    1. Will Create the VPC.
+
+    The next 2  steps below  are required for creating a VPC(using Boto3, it isnt required
+    when using the AWS Console or CDK):
+    ):
+
+    2. Will Enable DNS support to resolve domain names to IP addresses.
+    3. Will Enable DNS hostnames to assign public DNS names to instances.
+    example: -> https://c2-xx-xx-xx-xx.compute-1.amazonaws.com
+
+    Returns:
+        str: The ID of the created VPC.
+    """
+    ec2_client = boto3.client('ec2')
+    vpc = ec2_client.create_vpc(CidrBlock="10.0.0.0/16")
+    ec2_client.modify_vpc_attribute(VpcId=vpc['Vpc']['VpcId'], EnableDnsSupport={'Value': True})
+    ec2_client.modify_vpc_attribute(VpcId=vpc['Vpc']['VpcId'], EnableDnsHostnames={'Value': True})
+    return vpc['Vpc']['VpcId']
+
+
+def create_subnet(vpc_id: str, cidr_block: str, availability_zone: str, subnet_type: str) -> str:
+    """
+    Creates a subnet within a specified VPC.
+
+    - Subnets are used to logically partition a VPC into smaller networks.
+    - Public subnets allow automatic assignment of public IPs for instances.
+
+    Args:
+        vpc_id (str): ID of the VPC in which to create the subnet.
+        cidr_block (str): CIDR block for the subnet (e.g., "10.0.1.0/24").
+        availability_zone (str): The AZ where the subnet will reside.
+        subnet_type (str): Type of subnet, either "PUBLIC" or "PRIVATE".
+
+    Returns:
+        str: The ID of the created subnet.
+    """
+    ec2_client = boto3.client('ec2')
+    subnet = ec2_client.create_subnet(
+        VpcId=vpc_id,
+        CidrBlock=cidr_block,
+        AvailabilityZone=availability_zone,
+        MapPublicIpOnLaunch=(subnet_type.upper() == "PUBLIC")  # Public subnet auto-assigns public IPs
+       # This is a setting for when you launch an EC2 instance in a subnet. 
+       # It defines whether the EC2 instance should be automatically assigned a public IP address upon launch.
+    )
+    return subnet['Subnet']['SubnetId']
